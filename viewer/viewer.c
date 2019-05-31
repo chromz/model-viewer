@@ -83,6 +83,7 @@ static void event_loop(SDL_Event *e)
 static void render_node(const struct aiNode *node)
 {
 	struct aiMatrix4x4 model = node->mTransformation;
+	printf("PASE\n");
 	for (int i = 0; i < node->mNumMeshes; i++) {
 		const struct aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
 		const struct aiMaterial *mtl =
@@ -118,35 +119,113 @@ static void render_node(const struct aiNode *node)
 		glGenerateMipmap(GL_TEXTURE_2D);
 
 		// Doubt
-		int flat_size = mesh->mNumVertices * 9 * sizeof(GLfloat);
-		GLfloat *vertex_data = malloc(flat_size);
+		int flat_len = mesh->mNumVertices * 9;
+		int flat_size = flat_len * sizeof(GLfloat);
+		GLfloat *vertex_data = calloc(flat_len, sizeof(*vertex_data));
 		int counter = 0;
-		int offset = mesh->mNumVertices;
-		int offset_tex = offset * 2;
 		// Flat normals and vertices
 		for (int j = 0; j < mesh->mNumVertices; j++) {
-			vertex_data[counter] = mesh->mVertices[j].x;
-			vertex_data[offset + counter] = mesh->mNormals[j].x;
-			vertex_data[offset_tex + counter++] =
-				mesh->mTextureCoords[0][j].x;
-			vertex_data[counter] = mesh->mVertices[j].y;
-			vertex_data[offset + counter] = mesh->mNormals[j].y;
-			vertex_data[offset_tex + counter++] =
-				mesh->mTextureCoords[0][j].y;
-			vertex_data[counter] = mesh->mVertices[j].z;
-			vertex_data[offset + counter++] = mesh->mNormals[j].z;
-			vertex_data[offset_tex + counter++] =
-				mesh->mTextureCoords[0][j].z;
+			vertex_data[counter++] = mesh->mVertices[j].x;
+			vertex_data[counter++] = mesh->mVertices[j].y;
+			vertex_data[counter++] = mesh->mVertices[j].z;
+			vertex_data[counter++] = mesh->mNormals[j].x;
+			vertex_data[counter++] = mesh->mNormals[j].y;
+			vertex_data[counter++] = mesh->mNormals[j].z;
+			vertex_data[counter++] = mesh->mTextureCoords[0][j].x;
+			vertex_data[counter++] = mesh->mTextureCoords[0][j].y;
+			vertex_data[counter++] = mesh->mTextureCoords[0][j].z;
 		}
 
+
+		// Change
+		int face_len =  (mesh->mNumFaces) * mesh->mFaces[0].mNumIndices;
+		int face_flat_size = sizeof(GLuint) * face_len;
+		GLuint *faces_data = malloc(face_flat_size);
+		/* for (int j =0; j < face_len; j++) { */
+		/* 	faces_data[j] = j; */
+		/* } */
+		counter = 0;
+		for (int j = 0; j < mesh->mNumFaces; j++) {
+			struct aiFace face = mesh->mFaces[j];
+			for (int k = 0; k < face.mNumIndices; k++) {
+				faces_data[counter++] = face.mIndices[k];
+			}
+		}
+		/* printf("["); */
+		/* for (int j = 0; j < mesh->mNumVertices * 9; j++) { */
+		/* 	printf("%f ", vertex_data[j]); */
+		/* } */
+		/* printf("]\n"); */
+		/* int *a; */
+		/* *a = 3; */
 		GLuint vert_buffer;
 		glGenVertexArrays(1, &vert_buffer);
 		glBindBuffer(GL_ARRAY_BUFFER, vert_buffer);
 		glBufferData(GL_ARRAY_BUFFER, flat_size,
 			     vertex_data, GL_STATIC_DRAW);
 
+
+
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 36, NULL);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE,
+				      36, (void *) 12);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE,
+				      36, (void *) 24);
+		glEnableVertexAttribArray(2);
+
+		GLuint element_buffer;
+		glGenBuffers(1, &element_buffer);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, face_flat_size,
+			     faces_data, GL_STATIC_DRAW);
+
+		// Can try to transpose
+		glUniformMatrix4fv(
+			glGetUniformLocation(program, "model"),
+			1,
+			GL_FALSE,
+			(float *) &model);
+
+		glUniformMatrix4fv(
+			glGetUniformLocation(program, "view"),
+			1,
+			GL_FALSE,
+			view[0]);
+
+		glUniformMatrix4fv(
+			glGetUniformLocation(program, "projection"),
+			1,
+			GL_FALSE,
+			projection[0]);
+		struct aiColor4D diffuse;
+		if (aiGetMaterialColor(mtl, AI_MATKEY_COLOR_DIFFUSE,
+				       &diffuse) != AI_SUCCESS) {
+			printf("Unable to get diffuse color\n");
+			break;
+		}
+
+
+		glUniform4f(
+			glGetUniformLocation(program, "color"),
+			diffuse.r,
+			diffuse.g,
+			diffuse.b,
+			1);
+
+		glUniform4f(
+			glGetUniformLocation(program, "light"),
+			-100,
+			300,
+			0,
+			1);
+
+		glDrawElements(GL_TRIANGLES, face_len, GL_UNSIGNED_INT, NULL);
+
 		/* printf("File %s\n", path.data); */
 		free(vertex_data);
+		free(faces_data);
 	}
 
 	for (int i = 0; i < node->mNumChildren; i++) {
@@ -159,6 +238,9 @@ static void display(void)
 	/* glClearColor(.5F, .5F, .5F, 1.F); */
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glLoadIdentity();
+	glm_lookat((vec3){0.F, 0.F, 200.F},
+		   (vec3){0.F, 0.F, 0.F},
+		   (vec3) {0.F, 1.F, 0.F}, view);
 	render_node(scene->mRootNode);
 	/* glDrawArrays(GL_TRIANGLES, 0, 3); */
 }
