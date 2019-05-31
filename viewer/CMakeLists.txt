@@ -9,6 +9,7 @@ target_include_directories (viewer PUBLIC
   ${GLUT_INCLUDE_DIRS}
   ${OPENGL_INCLUDE_DIRS}
   ${ASSIMP_INCLUDE_DIRS}
+  ${SDL2_IMG_PATH}
   ${CGLM_PATH})
 target_link_libraries (viewer PUBLIC
   SDL2::SDL2
@@ -16,4 +17,5 @@ target_link_libraries (viewer PUBLIC
   ${GLEW_LIBRARIES}
   ${OPENGL_LIBRARIES}
   ${ASSIMP_LIBRARIES}
-  ${CGLM_LIB})
+  ${CGLM_LIB}
+  ${SDL2_IMG_LIB})

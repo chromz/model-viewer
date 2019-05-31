@@ -7,6 +7,7 @@
 #include <GL/glew.h>
 #include <GL/gl.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -20,8 +21,8 @@ static const struct aiScene *scene = NULL;
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static bool running = true;
-static mat4 the_mat;
 static GLuint program;
+static mat4 model, view, projection, view_proj;
 
 static float angle = 0.F;
 
@@ -79,19 +80,87 @@ static void event_loop(SDL_Event *e)
 	}
 }
 
+static void render_node(const struct aiNode *node)
+{
+	struct aiMatrix4x4 model = node->mTransformation;
+	for (int i = 0; i < node->mNumMeshes; i++) {
+		const struct aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
+		const struct aiMaterial *mtl =
+			scene->mMaterials[mesh->mMaterialIndex];
+		struct aiString path;
+
+		int count =
+			aiGetMaterialTextureCount(mtl, aiTextureType_DIFFUSE);
+		if (count < 1) {
+			break;
+		}
+		int success = aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE,
+						   0, &path, NULL, NULL, NULL,
+						   NULL, NULL, NULL);
+		if (success != AI_SUCCESS) {
+			printf("Error getting texture %s\n",
+			       aiGetErrorString());
+			break;
+		}
+		// Remove assimp first 2 chars
+		char *image_name = path.data + 2;
+		SDL_Surface *img = IMG_Load(image_name);
+
+		int tex_width = img->w;
+		int tex_height = img->h;
+		GLubyte *texture_data =  img->pixels;
+		GLuint texture;
+		glGenTextures(1, &texture);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+			     tex_width, tex_height, 0,
+			     GL_RGB, GL_UNSIGNED_BYTE, texture_data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+
+		// Doubt
+		int flat_size = mesh->mNumVertices * 9 * sizeof(GLfloat);
+		GLfloat *vertex_data = malloc(flat_size);
+		int counter = 0;
+		int offset = mesh->mNumVertices;
+		int offset_tex = offset * 2;
+		// Flat normals and vertices
+		for (int j = 0; j < mesh->mNumVertices; j++) {
+			vertex_data[counter] = mesh->mVertices[j].x;
+			vertex_data[offset + counter] = mesh->mNormals[j].x;
+			vertex_data[offset_tex + counter++] =
+				mesh->mTextureCoords[0][j].x;
+			vertex_data[counter] = mesh->mVertices[j].y;
+			vertex_data[offset + counter] = mesh->mNormals[j].y;
+			vertex_data[offset_tex + counter++] =
+				mesh->mTextureCoords[0][j].y;
+			vertex_data[counter] = mesh->mVertices[j].z;
+			vertex_data[offset + counter++] = mesh->mNormals[j].z;
+			vertex_data[offset_tex + counter++] =
+				mesh->mTextureCoords[0][j].z;
+		}
+
+		GLuint vert_buffer;
+		glGenVertexArrays(1, &vert_buffer);
+		glBindBuffer(GL_ARRAY_BUFFER, vert_buffer);
+		glBufferData(GL_ARRAY_BUFFER, flat_size,
+			     vertex_data, GL_STATIC_DRAW);
+
+		/* printf("File %s\n", path.data); */
+		free(vertex_data);
+	}
+
+	for (int i = 0; i < node->mNumChildren; i++) {
+		render_node(node->mChildren[i]);
+	}
+}
+
 static void display(void)
 {
 	/* glClearColor(.5F, .5F, .5F, 1.F); */
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glLoadIdentity();
-	glUseProgram(program);
-	glUniformMatrix4fv(
-		glGetUniformLocation(program, "theMatrix"),
-		1,
-		GL_FALSE,
-		the_mat[0]
-		);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
+	render_node(scene->mRootNode);
+	/* glDrawArrays(GL_TRIANGLES, 0, 3); */
 }
 
 void init(void)
@@ -110,7 +179,9 @@ void init(void)
 		return;
 	}
 
-	glClearColor(0.5, 1.0, 0.5, 1.0);
+	glClearColor(0.5F, 0.5F, 0.5F, 1.0);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_TEXTURE_2D);
 
 	GLuint vert_shader = glCreateShader(GL_VERTEX_SHADER);
 	GLuint frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -179,68 +250,37 @@ void init(void)
 	glDetachShader(program, vert_shader);
 	glDetachShader(program, frag_shader);
 
-	GLuint vertex_buffer;
-	GLfloat vertex_data[18] = {
-		-0.5, -0.5, 0.0, 1.0, 0.0, 0.0,
-		0.5, -0.5, 0.0, 0.0, 1.0, 0.0,
-		0.0, 0.5, 0.0, 0.0, 0.0, 1.0,
-	};
-	glGenBuffers(1, &vertex_buffer);
-	glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-	glBufferData(GL_ARRAY_BUFFER,
-		     sizeof(GLfloat) * 18,
-		     vertex_data,
-		     GL_STATIC_DRAW);
+	glUseProgram(program);
 
-	GLuint vertex_array;
-	glGenVertexArrays(1, &vertex_array);
-	glBindVertexArray(vertex_array);
-	glVertexAttribPointer(
-		0,
-		3,
-		GL_FLOAT,
-		GL_FALSE,
-		4 * 6,
-		(void *) 0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(
-		1,
-		3,
-		GL_FLOAT,
-		GL_FALSE,
-		4 * 6,
-		(void *) (4 * 3));
-	glEnableVertexAttribArray(1);
+	glm_mat4_identity(model);
+	glm_mat4_identity(view);
 
-	mat4 model, view, projection, view_proj;
-	mat4 translate, rotate, scale;
-	vec3 vtranslate = {0.F, 0.F, 0.F};
-	vec3 vrotate = {0.F, 1.F, 0.F};
-	vec3 vscale = {1.F, 1.F, 1.F};
-	glm_mat4_identity(the_mat);
-	glm_mat4_identity(translate);
-	glm_mat4_identity(rotate);
-	glm_mat4_identity(scale);
-	/* glm_mat4_print(temp, stdout); */
-	glm_translate(translate, vtranslate);
-	glm_rotate(rotate, 0, vrotate);
-	glm_scale(scale, vscale);
+	/* mat4 translate, rotate, scale; */
+	/* vec3 vtranslate = {0.F, 0.F, 0.F}; */
+	/* vec3 vrotate = {0.F, 1.F, 0.F}; */
+	/* vec3 vscale = {1.F, 1.F, 1.F}; */
+	/* glm_mat4_identity(translate); */
+	/* glm_mat4_identity(rotate); */
+	/* glm_mat4_identity(scale); */
+	/* /\* glm_mat4_print(temp, stdout); *\/ */
+	/* glm_translate(translate, vtranslate); */
+	/* glm_rotate(rotate, 0, vrotate); */
+	/* glm_scale(scale, vscale); */
 
-	glm_mat4_mul(rotate, scale, model);
-	glm_mat4_mul(translate, model, model);
+	/* glm_mat4_mul(rotate, scale, model); */
+	/* glm_mat4_mul(translate, model, model); */
 
-	glm_lookat((vec3){0.F, 0.F, 5.F},
-		   (vec3){0.F, 0.F, 0.F},
-		   (vec3) {0.F, 1.F, 0.F}, view);
+	/* glm_lookat((vec3){0.F, 0.F, 5.F}, */
+	/* 	   (vec3){0.F, 0.F, 0.F}, */
+	/* 	   (vec3) {0.F, 1.F, 0.F}, view); */
 
 	glm_perspective(glm_rad(45.F), 800.F/600.F, 0.1, 1000.0, projection);
 
-	glm_mat4_mul(view, model, the_mat);
-	glm_mat4_mul(projection, the_mat, the_mat);
-
-	printf("THE MAT\n");
-	glm_mat4_print(the_mat, stdout);
 	glViewport(0, 0, WIDHT, HEIGHT);
+
+	if (!load_model()) {
+		return;
+	}
 
 }
 
