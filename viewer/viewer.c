@@ -83,7 +83,6 @@ static void event_loop(SDL_Event *e)
 static void render_node(const struct aiNode *node)
 {
 	struct aiMatrix4x4 model = node->mTransformation;
-	printf("PASE\n");
 	for (int i = 0; i < node->mNumMeshes; i++) {
 		const struct aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
 		const struct aiMaterial *mtl =
