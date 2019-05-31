@@ -1,6 +1,12 @@
 cmake_minimum_required (VERSION 3.14)
 project (ModelViewer)
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
+configure_file ("rex.obj" "rex.obj" COPYONLY)
+configure_file ("rex.bmp" "rex.bmp" COPYONLY)
+find_package (OpenGL REQUIRED)
+find_package (SDL2 REQUIRED)
+find_package (ASSIMP REQUIRED)
+find_package (glm REQUIRED)
 add_subdirectory (viewer)
 add_subdirectory (cmd)
 

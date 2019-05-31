@@ -4,5 +4,5 @@
 
 int main(int argc, char *argv[])
 {
-	viewer_init();
+	viewer_start();
 }

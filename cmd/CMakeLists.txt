@@ -1,4 +1,3 @@
-
 set (CMD_SOURCES main.c)
 add_executable (model_viewer ${CMD_SOURCES})
 target_include_directories(model_viewer PUBLIC
