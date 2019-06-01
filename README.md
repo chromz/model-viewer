@@ -6,6 +6,7 @@ Depdencies:
 ```
 glew
 sdl2
+sdl2_image
 cglm (yay -S cglm)
 assimp
 opengl
