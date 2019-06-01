@@ -28,6 +28,7 @@ static mat4 model, view, projection, view_proj;
 static GLuint **textures = NULL;
 static GLuint *textures_widths = NULL;
 static GLuint *textures_heights = NULL;
+static bool *has_blend = NULL;
 static GLfloat delta_light = 400.F;
 static vec3 light = {-26500.F, 44801.F, -11599.F};
 static vec3 zoom = {0.F, 0.F, 200.F};
@@ -227,9 +228,19 @@ static void render_node(const struct aiNode *node)
 		int tex_width = textures_widths[mesh->mMaterialIndex];
 		int tex_height = textures_heights[mesh->mMaterialIndex];
 
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+		GLint color_depth;
+		if (has_blend[mesh->mMaterialIndex]) {
+			color_depth = GL_RGBA;
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		} else {
+			color_depth = GL_RGB;
+			glDisable(GL_BLEND);
+		}
+
+		glTexImage2D(GL_TEXTURE_2D, 0, color_depth,
 			     tex_width, tex_height, 0,
-			     GL_RGB, GL_UNSIGNED_BYTE,
+			     color_depth, GL_UNSIGNED_BYTE,
 			     textures[mesh->mMaterialIndex]);
 
 		glGenerateMipmap(GL_TEXTURE_2D);
@@ -334,20 +345,26 @@ static void display(void)
 	render_node(scene->mRootNode);
 }
 
-static SDL_Surface* flip_vertical(SDL_Surface* sfc) {
-     SDL_Surface* result = SDL_CreateRGBSurface(sfc->flags, sfc->w, sfc->h,
-         sfc->format->BytesPerPixel * 8, sfc->format->Rmask, sfc->format->Gmask,
-         sfc->format->Bmask, sfc->format->Amask);
-     int pitch = sfc->pitch;
-     int pxlength = pitch*sfc->h;
-     GLubyte *pixels = (GLubyte *) (sfc->pixels) + pxlength;
-     GLubyte *rpixels = (GLubyte *)(result->pixels) ;
-     for(int line = 0; line < sfc->h; ++line) {
-         memcpy(rpixels,pixels,pitch);
-         pixels -= pitch;
-         rpixels += pitch;
-     }
-     return result;
+static SDL_Surface* flip_vertical(SDL_Surface* sfc)
+{
+
+	SDL_Surface* result = SDL_CreateRGBSurface(sfc->flags, sfc->w, sfc->h,
+						   sfc->format->BytesPerPixel *
+						   8,
+						   sfc->format->Rmask,
+						   sfc->format->Gmask,
+						   sfc->format->Bmask,
+						   sfc->format->Amask);
+	int pitch = sfc->pitch;
+	int pxlength = pitch*sfc->h;
+	GLubyte *pixels = (GLubyte *) (sfc->pixels) + pxlength;
+	GLubyte *rpixels = (GLubyte *)(result->pixels) ;
+	for(int line = 0; line < sfc->h; ++line) {
+		memcpy(rpixels,pixels,pitch);
+		pixels -= pitch;
+		rpixels += pitch;
+	}
+	return result;
 }
 
 static void load_textures(void)
@@ -357,6 +374,7 @@ static void load_textures(void)
 	textures_heights = malloc(scene->mNumMaterials *
 				 sizeof(*textures_heights));
 	textures = malloc(scene->mNumMaterials * sizeof(*textures));
+	has_blend = malloc(scene->mNumMaterials * sizeof(*has_blend));
 	for (int i = 0; i < scene->mNumMaterials; i++) {
 		const struct aiMaterial *mtl = scene->mMaterials[i];
 		int count =
@@ -382,6 +400,11 @@ static void load_textures(void)
 			free(image_path);
 			SDL_Surface *flipped = flip_vertical(img);
 			SDL_FreeSurface(img);
+			if (flipped->format->BytesPerPixel == 4) {
+				has_blend[i] = true;
+			} else {
+				has_blend[i] = false;
+			}
 
 			int tex_width = flipped->w;
 			int tex_height = flipped->h;
@@ -413,6 +436,10 @@ static void init(void)
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
 	SDL_GL_SetSwapInterval(1);
 
 	GLenum err = glewInit();
