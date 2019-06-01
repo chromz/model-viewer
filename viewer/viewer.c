@@ -28,6 +28,10 @@ static mat4 model, view, projection, view_proj;
 static GLuint **textures = NULL;
 static GLuint *textures_widths = NULL;
 static GLuint *textures_heights = NULL;
+static GLfloat delta_light = 400.F;
+static vec3 light = {-26500.F, 44801.F, -11599.F};
+static vec3 zoom = {0.F, 0.F, 200.F};
+static GLfloat max_zoom = 150.F;
 
 
 
@@ -133,6 +137,48 @@ static void event_loop(SDL_Event *e)
 				break;
 			}
 
+			case SDLK_w: {
+				if (zoom[2] - 5.F > max_zoom) {
+					zoom[2] -= 5.F;
+				}
+				break;
+			}
+
+			case SDLK_s: {
+				zoom[2] += 5.F;
+				break;
+			}
+
+			case SDLK_t: {
+				light[0] += delta_light;
+				break;
+			}
+
+			case SDLK_y: {
+				light[0] -= delta_light;
+				break;
+			}
+
+			case SDLK_u: {
+				light[1] -= delta_light;
+				break;
+			}
+
+			case SDLK_i: {
+				light[1] += delta_light;
+				break;
+			}
+
+			case SDLK_o: {
+				light[2] -= delta_light;
+				break;
+			}
+
+			case SDLK_p: {
+				light[2] += delta_light;
+				break;
+			}
+
 			}
 		}
 	}
@@ -152,7 +198,6 @@ static char  *concat(const char *s1, const char *s2)
 
 static void render_node(const struct aiNode *node)
 {
-
 	for (int i = 0; i < node->mNumMeshes; i++) {
 		const struct aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
 		const struct aiMaterial *mtl =
@@ -163,6 +208,7 @@ static void render_node(const struct aiNode *node)
 		int flat_len = mesh->mNumVertices * 9;
 		int flat_size = flat_len * sizeof(GLfloat);
 		GLfloat *vertex_data = calloc(flat_len, sizeof(*vertex_data));
+
 		int counter = 0;
 		// Flat normals and vertices
 		for (int j = 0; j < mesh->mNumVertices; j++) {
@@ -172,22 +218,28 @@ static void render_node(const struct aiNode *node)
 			vertex_data[counter++] = mesh->mNormals[j].x;
 			vertex_data[counter++] = mesh->mNormals[j].y;
 			vertex_data[counter++] = mesh->mNormals[j].z;
+			if (mesh->mTextureCoords[0] == NULL) {
+				counter += 3;
+				continue;
+			}
 			vertex_data[counter++] = mesh->mTextureCoords[0][j].x;
 			vertex_data[counter++] = mesh->mTextureCoords[0][j].y;
 			vertex_data[counter++] = mesh->mTextureCoords[0][j].z;
 		}
-		struct aiString path;
-		GLuint index;
-		aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE,
-				     0, &path, NULL, &index,
-				     NULL, NULL, NULL, NULL);
+		if (mesh->mTextureCoords[0] == NULL) {
+			continue;
+		}
+
 		int tex_width = textures_widths[mesh->mMaterialIndex];
 		int tex_height = textures_heights[mesh->mMaterialIndex];
+
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
 			     tex_width, tex_height, 0,
 			     GL_RGB, GL_UNSIGNED_BYTE,
 			     textures[mesh->mMaterialIndex]);
+
 		glGenerateMipmap(GL_TEXTURE_2D);
+
 
 		// Change
 		int face_len =  (mesh->mNumFaces) * mesh->mFaces[0].mNumIndices;
@@ -204,7 +256,6 @@ static void render_node(const struct aiNode *node)
 
 		glBufferData(GL_ARRAY_BUFFER, flat_size,
 			     vertex_data, GL_STATIC_DRAW);
-
 
 
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 36, NULL);
@@ -255,9 +306,9 @@ static void render_node(const struct aiNode *node)
 
 		glUniform4f(
 			glGetUniformLocation(program, "light"),
-			-100,
-			300,
-			0,
+			light[0],
+			light[1],
+			light[2],
 			1);
 
 		glDrawElements(GL_TRIANGLES, face_len, GL_UNSIGNED_INT, NULL);
@@ -277,11 +328,10 @@ static void display(void)
 	/* glClearColor(.5F, .5F, .5F, 1.F); */
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glLoadIdentity();
-	glm_lookat((vec3){0.F, 0.F, 200.F},
+	glm_lookat(zoom,
 		   (vec3){0.F, 0.F, 0.F},
 		   (vec3) {0.F, 1.F, 0.F}, view);
 	render_node(scene->mRootNode);
-	/* glDrawArrays(GL_TRIANGLES, 0, 3); */
 }
 
 static void load_textures(void)
@@ -306,14 +356,15 @@ static void load_textures(void)
 				       aiGetErrorString());
 				break;
 			}
-			char *image_name = path.data + 2;
-			char *image_path = concat("models/", image_name);
+			char *image_path = concat("models/", path.data);
 			SDL_Surface *img = IMG_Load(image_path);
-			free(image_path);
 			if (img == NULL) {
-				printf("Could not load image\n");
-				return;
+				printf("Could not load image: %s\n",
+				       image_path);
+				continue;
 			}
+			free(image_path);
+
 			int tex_width = img->w;
 			int tex_height = img->h;
 			int tex_size = tex_width * tex_height;
@@ -430,26 +481,14 @@ static void init(void)
 	glm_mat4_identity(model);
 	glm_mat4_identity(view);
 
-	/* mat4 translate, rotate, scale; */
-	/* vec3 vtranslate = {0.F, 0.F, 0.F}; */
-	/* vec3 vrotate = {0.F, 1.F, 0.F}; */
-	/* vec3 vscale = {1.F, 1.F, 1.F}; */
-	/* glm_mat4_identity(translate); */
-	/* glm_mat4_identity(rotate); */
-	/* glm_mat4_identity(scale); */
-	/* /\* glm_mat4_print(temp, stdout); *\/ */
-	/* glm_translate(translate, vtranslate); */
-	/* glm_rotate(rotate, 0, vrotate); */
-	/* glm_scale(scale, vscale); */
+	vec3 vtranslate = {0.F, 0.F, 0.F};
+	vec3 vscale = {.09F, .09F, .09F};
+	glm_scale(model, vscale);
 
-	/* glm_mat4_mul(rotate, scale, model); */
-	/* glm_mat4_mul(translate, model, model); */
+	glm_translate(model, vtranslate);
 
-	/* glm_lookat((vec3){0.F, 0.F, 5.F}, */
-	/* 	   (vec3){0.F, 0.F, 0.F}, */
-	/* 	   (vec3) {0.F, 1.F, 0.F}, view); */
 
-	glm_perspective(glm_rad(45.F), 800.F/600.F, 0.1, 1000.0, projection);
+	glm_perspective(glm_rad(45.F), 800.F/600.F, 0.5F, 1000.0, projection);
 
 	glViewport(0, 0, WIDHT, HEIGHT);
 
