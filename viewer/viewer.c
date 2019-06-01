@@ -32,12 +32,14 @@ static GLfloat delta_light = 400.F;
 static vec3 light = {-26500.F, 44801.F, -11599.F};
 static vec3 zoom = {0.F, 0.F, 200.F};
 static GLfloat max_zoom = 150.F;
+static bool disable_light = 0;
 
 
 
 static bool load_model(void)
 {
-	scene = aiImportFile(MODEL, aiProcessPreset_TargetRealtime_MaxQuality);
+	scene = aiImportFile(MODEL, aiProcess_Triangulate |
+			     aiProcess_SortByPType);
 	if (!scene) {
 		printf("Unable to load model\n");
 		return false;
@@ -80,8 +82,7 @@ static void event_loop(SDL_Event *e)
 				break;
 			}
 			case SDLK_r: {
-				glClearColor(1.0, 0.0, 0.0, 1.0);
-				glClear(GL_COLOR_BUFFER_BIT);
+				disable_light = !disable_light;
 				break;
 			}
 			case SDLK_LEFT: {
@@ -218,16 +219,9 @@ static void render_node(const struct aiNode *node)
 			vertex_data[counter++] = mesh->mNormals[j].x;
 			vertex_data[counter++] = mesh->mNormals[j].y;
 			vertex_data[counter++] = mesh->mNormals[j].z;
-			if (mesh->mTextureCoords[0] == NULL) {
-				counter += 3;
-				continue;
-			}
 			vertex_data[counter++] = mesh->mTextureCoords[0][j].x;
 			vertex_data[counter++] = mesh->mTextureCoords[0][j].y;
 			vertex_data[counter++] = mesh->mTextureCoords[0][j].z;
-		}
-		if (mesh->mTextureCoords[0] == NULL) {
-			continue;
 		}
 
 		int tex_width = textures_widths[mesh->mMaterialIndex];
@@ -239,7 +233,6 @@ static void render_node(const struct aiNode *node)
 			     textures[mesh->mMaterialIndex]);
 
 		glGenerateMipmap(GL_TEXTURE_2D);
-
 
 		// Change
 		int face_len =  (mesh->mNumFaces) * mesh->mFaces[0].mNumIndices;
@@ -258,13 +251,16 @@ static void render_node(const struct aiNode *node)
 			     vertex_data, GL_STATIC_DRAW);
 
 
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 36, NULL);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+				      sizeof(GLfloat) * 9, NULL);
 		glEnableVertexAttribArray(0);
 		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE,
-				      36, (void *) 12);
+				      sizeof(GLfloat) * 9,
+				      (void *) (sizeof(GLfloat) * 3));
 		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE,
-				      36, (void *) 24);
+		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
+				      sizeof(GLfloat) * 9,
+				      (void *) (sizeof(GLfloat) * 6));
 		glEnableVertexAttribArray(2);
 
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, face_flat_size,
@@ -289,13 +285,13 @@ static void render_node(const struct aiNode *node)
 			GL_FALSE,
 			projection[0]);
 
+
 		struct aiColor4D diffuse;
 		if (aiGetMaterialColor(mtl, AI_MATKEY_COLOR_DIFFUSE,
 				       &diffuse) != AI_SUCCESS) {
 			printf("Unable to get diffuse color\n");
 			break;
 		}
-
 
 		glUniform4f(
 			glGetUniformLocation(program, "color"),
@@ -310,6 +306,10 @@ static void render_node(const struct aiNode *node)
 			light[1],
 			light[2],
 			1);
+
+		glUniform1i(
+			glGetUniformLocation(program, "disable_light"),
+			disable_light);
 
 		glDrawElements(GL_TRIANGLES, face_len, GL_UNSIGNED_INT, NULL);
 
@@ -332,6 +332,22 @@ static void display(void)
 		   (vec3){0.F, 0.F, 0.F},
 		   (vec3) {0.F, 1.F, 0.F}, view);
 	render_node(scene->mRootNode);
+}
+
+static SDL_Surface* flip_vertical(SDL_Surface* sfc) {
+     SDL_Surface* result = SDL_CreateRGBSurface(sfc->flags, sfc->w, sfc->h,
+         sfc->format->BytesPerPixel * 8, sfc->format->Rmask, sfc->format->Gmask,
+         sfc->format->Bmask, sfc->format->Amask);
+     int pitch = sfc->pitch;
+     int pxlength = pitch*sfc->h;
+     GLubyte *pixels = (GLubyte *) (sfc->pixels) + pxlength;
+     GLubyte *rpixels = (GLubyte *)(result->pixels) ;
+     for(int line = 0; line < sfc->h; ++line) {
+         memcpy(rpixels,pixels,pitch);
+         pixels -= pitch;
+         rpixels += pitch;
+     }
+     return result;
 }
 
 static void load_textures(void)
@@ -364,22 +380,26 @@ static void load_textures(void)
 				continue;
 			}
 			free(image_path);
+			SDL_Surface *flipped = flip_vertical(img);
+			SDL_FreeSurface(img);
 
-			int tex_width = img->w;
-			int tex_height = img->h;
+			int tex_width = flipped->w;
+			int tex_height = flipped->h;
 			int tex_size = tex_width * tex_height;
 			textures_widths[i] = tex_width;
 			textures_heights[i] = tex_height;
 			textures[i] = malloc(tex_size * sizeof(GLuint));
 			for (int j = 0; j < tex_size; j++) {
-				textures[i][j] = ((GLuint *) img->pixels)[j];
+				textures[i][j] = ((GLuint *)
+						  flipped->pixels)[j];
 			}
+
 			/* textures[i] = img->pixels; */
 			/* memcpy(textures[i], img->pixels, tex_size); */
 			GLuint texture;
 			glGenTextures(1, &texture);
 			glBindTexture(GL_TEXTURE_2D, texture);
-			SDL_FreeSurface(img);
+			SDL_FreeSurface(flipped);
 			printf("Loaded texture: %s id %d\n", path.data, i);
 		}
 	}
@@ -548,6 +568,9 @@ bool viewer_start(void)
 		/* 	break; */
 		/* } */
 	}
+	free(textures);
+	free(textures_heights);
+	free(textures_widths);
 	aiReleaseImport(scene);
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);

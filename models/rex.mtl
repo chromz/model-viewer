@@ -12,8 +12,8 @@ newmtl home
 	Kd 0.5882 0.5882 0.5882
 	Ks 0.0000 0.0000 0.0000
 	Ke 0.0000 0.0000 0.0000
-	map_Ka .\home_hatka_Base_Color.png
-	map_Kd .\home_hatka_Base_Color.png
+	map_Ka home_hatka_Base_Color.png
+	map_Kd home_hatka_Base_Color.png
 
 newmtl grunt
 	Ns 10.0000
@@ -26,8 +26,8 @@ newmtl grunt
 	Kd 0.0000 1.0000 0.0000
 	Ks 0.0000 0.0000 0.0000
 	Ke 0.0000 0.0000 0.0000
-	map_Ka .\grunt_Base_Color.png
-	map_Kd .\grunt_Base_Color.png
+	map_Ka grunt_Base_Color.png
+	map_Kd grunt_Base_Color.png
 
 newmtl brench
 	Ns 10.0000
@@ -40,8 +40,8 @@ newmtl brench
 	Kd 0.5882 0.5882 0.5882
 	Ks 0.0000 0.0000 0.0000
 	Ke 0.0000 0.0000 0.0000
-	map_Ka .\branch_Base_Color.png
-	map_Kd .\branch_Base_Color.png
+	map_Ka branch_Base_Color.png
+	map_Kd branch_Base_Color.png
 
 newmtl vane
 	Ns 10.0000
@@ -54,6 +54,9 @@ newmtl vane
 	Kd 0.5882 0.5882 0.5882
 	Ks 0.0000 0.0000 0.0000
 	Ke 0.0000 0.0000 0.0000
+	map_Ka vane.tga
+	map_Kd vane.tga
+
 
 newmtl grass
 	Ns 10.0000
@@ -66,6 +69,6 @@ newmtl grass
 	Kd 0.5882 0.5882 0.5882
 	Ks 0.0000 0.0000 0.0000
 	Ke 0.0000 0.0000 0.0000
-	map_Ka .\grass_05.tga
-	map_Kd .\grass_05.tga
-	map_d .\grass_05.tga
+	map_Ka grass_05.tga
+	map_Kd grass_05.tga
+	map_d grass_05.tga

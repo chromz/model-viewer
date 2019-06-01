@@ -7,12 +7,17 @@ uniform mat4 view;
 uniform mat4 projection;
 uniform vec4 color;
 uniform vec4 light;
+uniform int disable_light;
 out vec4 vertexColor;
 out vec2 vertexTexcoords;
 void main()
 {
     float intensity = dot(normal, normalize(light - position));
     gl_Position = projection * view * model * position;
-    vertexColor = color * intensity;
+    if (disable_light == 1) {
+       vertexColor = color;
+    } else {
+      vertexColor = color * intensity;
+    }
     vertexTexcoords = texcoords;
 }
