@@ -10,12 +10,14 @@
 #include <SDL2/SDL_image.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "viewer.h"
 
-#define MODEL "rex.obj"
+#define MODEL "models/rex.obj"
 #define WIDHT 800
 #define HEIGHT 600
+#define ANGLE_DELTA 0.05F
 
 static const struct aiScene *scene = NULL;
 static SDL_Window *window = NULL;
@@ -23,8 +25,6 @@ static SDL_Renderer *renderer = NULL;
 static bool running = true;
 static GLuint program;
 static mat4 model, view, projection, view_proj;
-
-static float angle = 0.F;
 
 
 
@@ -68,21 +68,88 @@ static void event_loop(SDL_Event *e)
 		}
 		if (e->type == SDL_KEYDOWN) {
 			switch (e->key.keysym.sym) {
-			case SDLK_q:
+			case SDLK_q: {
 				running = false;
 				break;
-			case SDLK_r:
+			}
+			case SDLK_r: {
 				glClearColor(1.0, 0.0, 0.0, 1.0);
 				glClear(GL_COLOR_BUFFER_BIT);
 				break;
+			}
+			case SDLK_LEFT: {
+				mat4 local_rotate;
+				glm_mat4_identity(local_rotate);
+				vec3 vrotate = {0.F, 1.F, 0.F};
+				glm_rotate(local_rotate, -ANGLE_DELTA, vrotate);
+				glm_mat4_mul(model, local_rotate, model);
+				break;
+			}
+			case SDLK_RIGHT:{
+				mat4 local_rotate;
+				glm_mat4_identity(local_rotate);
+				vec3 vrotate = {0.F, 1.F, 0.F};
+				glm_rotate(local_rotate, ANGLE_DELTA, vrotate);
+				glm_mat4_mul(model, local_rotate, model);
+				break;
+			}
+
+			case SDLK_UP:{
+				mat4 local_rotate;
+				glm_mat4_identity(local_rotate);
+				vec3 vrotate = {1.F, 0.F, 1.F};
+				glm_rotate(local_rotate, ANGLE_DELTA, vrotate);
+				glm_mat4_mul(model, local_rotate, model);
+				break;
+			}
+
+			case SDLK_DOWN:{
+				mat4 local_rotate;
+				glm_mat4_identity(local_rotate);
+				vec3 vrotate = {1.F, 0.F, 0.F};
+				glm_rotate(local_rotate, -ANGLE_DELTA, vrotate);
+				glm_mat4_mul(model, local_rotate, model);
+				break;
+			}
+
+			case SDLK_j: {
+				mat4 local_rotate;
+				glm_mat4_identity(local_rotate);
+				vec3 vrotate = {0.F, 0.F, 1.F};
+				glm_rotate(local_rotate, -ANGLE_DELTA, vrotate);
+				glm_mat4_mul(model, local_rotate, model);
+				break;
+			}
+
+			case SDLK_k: {
+				mat4 local_rotate;
+				glm_mat4_identity(local_rotate);
+				vec3 vrotate = {0.F, 0.F, 1.F};
+				glm_rotate(local_rotate, ANGLE_DELTA, vrotate);
+				glm_mat4_mul(model, local_rotate, model);
+				break;
+			}
+
 			}
 		}
 	}
 }
 
+static char  *concat(const char *s1, const char *s2)
+{
+	char *result = malloc(strlen(s1) + strlen(s2) + 1);
+	if (result == NULL) {
+		printf("Couldn't allocate string");
+		return NULL;
+	}
+	strcpy(result, s1);
+	strcat(result, s2);
+	return result;
+}
+
 static void render_node(const struct aiNode *node)
 {
-	struct aiMatrix4x4 model = node->mTransformation;
+
 	for (int i = 0; i < node->mNumMeshes; i++) {
 		const struct aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
 		const struct aiMaterial *mtl =
@@ -102,20 +169,30 @@ static void render_node(const struct aiNode *node)
 			       aiGetErrorString());
 			break;
 		}
+
 		// Remove assimp first 2 chars
 		char *image_name = path.data + 2;
-		SDL_Surface *img = IMG_Load(image_name);
+		char *image_path = concat("models/", image_name);
+		SDL_Surface *img = IMG_Load(image_path);
+		free(image_path);
+		if (img == NULL) {
+			printf("Could not load image\n");
+			return;
+		}
 
 		int tex_width = img->w;
 		int tex_height = img->h;
 		GLubyte *texture_data =  img->pixels;
 		GLuint texture;
+
 		glGenTextures(1, &texture);
 		glBindTexture(GL_TEXTURE_2D, texture);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
 			     tex_width, tex_height, 0,
 			     GL_RGB, GL_UNSIGNED_BYTE, texture_data);
 		glGenerateMipmap(GL_TEXTURE_2D);
+		SDL_FreeSurface(img);
+
 
 		// Doubt
 		int flat_len = mesh->mNumVertices * 9;
@@ -136,13 +213,12 @@ static void render_node(const struct aiNode *node)
 		}
 
 
+
 		// Change
 		int face_len =  (mesh->mNumFaces) * mesh->mFaces[0].mNumIndices;
 		int face_flat_size = sizeof(GLuint) * face_len;
 		GLuint *faces_data = malloc(face_flat_size);
-		/* for (int j =0; j < face_len; j++) { */
-		/* 	faces_data[j] = j; */
-		/* } */
+
 		counter = 0;
 		for (int j = 0; j < mesh->mNumFaces; j++) {
 			struct aiFace face = mesh->mFaces[j];
@@ -150,13 +226,7 @@ static void render_node(const struct aiNode *node)
 				faces_data[counter++] = face.mIndices[k];
 			}
 		}
-		/* printf("["); */
-		/* for (int j = 0; j < mesh->mNumVertices * 9; j++) { */
-		/* 	printf("%f ", vertex_data[j]); */
-		/* } */
-		/* printf("]\n"); */
-		/* int *a; */
-		/* *a = 3; */
+
 		GLuint vert_buffer;
 		glGenVertexArrays(1, &vert_buffer);
 		glBindBuffer(GL_ARRAY_BUFFER, vert_buffer);
@@ -185,7 +255,7 @@ static void render_node(const struct aiNode *node)
 			glGetUniformLocation(program, "model"),
 			1,
 			GL_FALSE,
-			(float *) &model);
+			model[0]);
 
 		glUniformMatrix4fv(
 			glGetUniformLocation(program, "view"),
@@ -198,6 +268,7 @@ static void render_node(const struct aiNode *node)
 			1,
 			GL_FALSE,
 			projection[0]);
+
 		struct aiColor4D diffuse;
 		if (aiGetMaterialColor(mtl, AI_MATKEY_COLOR_DIFFUSE,
 				       &diffuse) != AI_SUCCESS) {
@@ -270,8 +341,8 @@ void init(void)
 	GLchar *fragment_shader_src = NULL;
 	GLint vertex_len = 0;
 	GLint fragment_len = 0;
-	read_shader("shader.vert", &vertex_shader_src, &vertex_len);
-	read_shader("shader.frag", &fragment_shader_src, &fragment_len);
+	read_shader("viewer/shader.vert", &vertex_shader_src, &vertex_len);
+	read_shader("viewer/shader.frag", &fragment_shader_src, &fragment_len);
 	if (vertex_shader_src == NULL || fragment_shader_src == NULL) {
 		printf("An error occurred while reading shaders\n");
 		return;
@@ -298,6 +369,7 @@ void init(void)
 		printf("Error: %s\n", log);
 		glDeleteShader(vert_shader);
 		glDeleteShader(frag_shader);
+		free(log);
 		return;
 	}
 	glGetShaderiv(frag_shader, GL_COMPILE_STATUS, &is_compiled);
@@ -311,6 +383,7 @@ void init(void)
 		printf("Error: %s\n", log);
 		glDeleteShader(vert_shader);
 		glDeleteShader(frag_shader);
+		free(log);
 		return;
 	}
 
@@ -332,6 +405,8 @@ void init(void)
 	glDetachShader(program, frag_shader);
 
 	glUseProgram(program);
+	free(vertex_shader_src);
+	free(fragment_shader_src);
 
 	glm_mat4_identity(model);
 	glm_mat4_identity(view);
@@ -396,13 +471,19 @@ bool viewer_start(void)
 
 	init();
 	SDL_Event e;
+	/* int count = 0; */
 	while (running) {
 		event_loop(&e);
 		display();
 		SDL_RenderPresent(renderer);
 		SDL_Delay(15);
+		/* if (count++ == 5) { */
+		/* 	break; */
+		/* } */
 	}
-
+	aiReleaseImport(scene);
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyWindow(window);
 	SDL_Quit();
 }
 

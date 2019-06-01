@@ -1,7 +1,7 @@
 set (VIEWER_SOURCES viewer.c)
 add_library (viewer STATIC ${VIEWER_SOURCES})
-configure_file ("shader.vert" "../shader.vert" COPYONLY)
-configure_file ("shader.frag" "../shader.frag" COPYONLY)
+configure_file ("shader.vert" "shader.vert" COPYONLY)
+configure_file ("shader.frag" "shader.frag" COPYONLY)
 target_include_directories (viewer PUBLIC
   SDL2::SDL2
   ${GLM_INCLUDE_DIRS}
