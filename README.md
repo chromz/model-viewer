@@ -6,6 +6,7 @@ Depdencies:
 ```
 glew
 sdl2
+sdl2_image
 cglm (yay -S cglm)
 assimp
 opengl
@@ -31,7 +32,7 @@ s - Zoom out
 <down> rotate down
 j - rotate up in z
 k - rotate down in z
-
+r - toggle lighting
 y, u, i, o, p - Change lighting
 q - quit
 ```
