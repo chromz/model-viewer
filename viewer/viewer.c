@@ -598,6 +598,7 @@ bool viewer_start(void)
 	free(textures);
 	free(textures_heights);
 	free(textures_widths);
+	free(has_blend);
 	aiReleaseImport(scene);
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
