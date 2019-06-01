@@ -369,6 +369,9 @@ static SDL_Surface* flip_vertical(SDL_Surface* sfc)
 
 static void load_textures(void)
 {
+	GLuint texture;
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
 	textures_widths = malloc(scene->mNumMaterials *
 				 sizeof(*textures_widths));
 	textures_heights = malloc(scene->mNumMaterials *
@@ -419,9 +422,6 @@ static void load_textures(void)
 
 			/* textures[i] = img->pixels; */
 			/* memcpy(textures[i], img->pixels, tex_size); */
-			GLuint texture;
-			glGenTextures(1, &texture);
-			glBindTexture(GL_TEXTURE_2D, texture);
 			SDL_FreeSurface(flipped);
 			printf("Loaded texture: %s id %d\n", path.data, i);
 		}
