@@ -8,6 +8,7 @@ glew
 sdl2
 cglm (yay -S cglm)
 assimp
+opengl
 ```
 Compiling:
 ```
