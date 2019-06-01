@@ -25,6 +25,9 @@ static SDL_Renderer *renderer = NULL;
 static bool running = true;
 static GLuint program;
 static mat4 model, view, projection, view_proj;
+static GLuint **textures = NULL;
+static GLuint *textures_widths = NULL;
+static GLuint *textures_heights = NULL;
 
 
 
@@ -154,44 +157,6 @@ static void render_node(const struct aiNode *node)
 		const struct aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
 		const struct aiMaterial *mtl =
 			scene->mMaterials[mesh->mMaterialIndex];
-		struct aiString path;
-
-		int count =
-			aiGetMaterialTextureCount(mtl, aiTextureType_DIFFUSE);
-		if (count < 1) {
-			break;
-		}
-		int success = aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE,
-						   0, &path, NULL, NULL, NULL,
-						   NULL, NULL, NULL);
-		if (success != AI_SUCCESS) {
-			printf("Error getting texture %s\n",
-			       aiGetErrorString());
-			break;
-		}
-
-		// Remove assimp first 2 chars
-		char *image_name = path.data + 2;
-		char *image_path = concat("models/", image_name);
-		SDL_Surface *img = IMG_Load(image_path);
-		free(image_path);
-		if (img == NULL) {
-			printf("Could not load image\n");
-			return;
-		}
-
-		int tex_width = img->w;
-		int tex_height = img->h;
-		GLubyte *texture_data =  img->pixels;
-		GLuint texture;
-
-		glGenTextures(1, &texture);
-		glBindTexture(GL_TEXTURE_2D, texture);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-			     tex_width, tex_height, 0,
-			     GL_RGB, GL_UNSIGNED_BYTE, texture_data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-		SDL_FreeSurface(img);
 
 
 		// Doubt
@@ -211,8 +176,18 @@ static void render_node(const struct aiNode *node)
 			vertex_data[counter++] = mesh->mTextureCoords[0][j].y;
 			vertex_data[counter++] = mesh->mTextureCoords[0][j].z;
 		}
-
-
+		struct aiString path;
+		GLuint index;
+		aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE,
+				     0, &path, NULL, &index,
+				     NULL, NULL, NULL, NULL);
+		int tex_width = textures_widths[mesh->mMaterialIndex];
+		int tex_height = textures_heights[mesh->mMaterialIndex];
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+			     tex_width, tex_height, 0,
+			     GL_RGB, GL_UNSIGNED_BYTE,
+			     textures[mesh->mMaterialIndex]);
+		glGenerateMipmap(GL_TEXTURE_2D);
 
 		// Change
 		int face_len =  (mesh->mNumFaces) * mesh->mFaces[0].mNumIndices;
@@ -315,7 +290,57 @@ static void display(void)
 	/* glDrawArrays(GL_TRIANGLES, 0, 3); */
 }
 
-void init(void)
+static void load_textures(void)
+{
+	textures_widths = malloc(scene->mNumMaterials *
+				 sizeof(*textures_widths));
+	textures_heights = malloc(scene->mNumMaterials *
+				 sizeof(*textures_heights));
+	textures = malloc(scene->mNumMaterials * sizeof(*textures));
+	for (int i = 0; i < scene->mNumMaterials; i++) {
+		const struct aiMaterial *mtl = scene->mMaterials[i];
+		int count =
+			aiGetMaterialTextureCount(mtl, aiTextureType_DIFFUSE);
+		if (count > 0) {
+			struct aiString path;
+			int success =
+				aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE,
+						     0, &path, NULL, NULL,
+						     NULL, NULL, NULL, NULL);
+			if (success != AI_SUCCESS) {
+				printf("Error getting texture %s\n",
+				       aiGetErrorString());
+				break;
+			}
+			char *image_name = path.data + 2;
+			char *image_path = concat("models/", image_name);
+			SDL_Surface *img = IMG_Load(image_path);
+			free(image_path);
+			if (img == NULL) {
+				printf("Could not load image\n");
+				return;
+			}
+			int tex_width = img->w;
+			int tex_height = img->h;
+			int tex_size = tex_width * tex_height;
+			textures_widths[i] = tex_width;
+			textures_heights[i] = tex_height;
+			textures[i] = malloc(tex_size * sizeof(GLuint));
+			for (int j = 0; j < tex_size; j++) {
+				textures[i][j] = ((GLuint *) img->pixels)[j];
+			}
+			/* textures[i] = img->pixels; */
+			/* memcpy(textures[i], img->pixels, tex_size); */
+			GLuint texture;
+			glGenTextures(1, &texture);
+			glBindTexture(GL_TEXTURE_2D, texture);
+			SDL_FreeSurface(img);
+			printf("Loaded texture: %s id %d\n", path.data, i);
+		}
+	}
+}
+
+static void init(void)
 {
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
 			    SDL_GL_CONTEXT_PROFILE_CORE);
@@ -437,6 +462,8 @@ void init(void)
 	if (!load_model()) {
 		return;
 	}
+
+	load_textures();
 
 }
 
