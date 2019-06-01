@@ -202,9 +202,6 @@ static void render_node(const struct aiNode *node)
 			}
 		}
 
-		GLuint vert_buffer;
-		glGenVertexArrays(1, &vert_buffer);
-		glBindBuffer(GL_ARRAY_BUFFER, vert_buffer);
 		glBufferData(GL_ARRAY_BUFFER, flat_size,
 			     vertex_data, GL_STATIC_DRAW);
 
@@ -219,9 +216,6 @@ static void render_node(const struct aiNode *node)
 				      36, (void *) 24);
 		glEnableVertexAttribArray(2);
 
-		GLuint element_buffer;
-		glGenBuffers(1, &element_buffer);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, face_flat_size,
 			     faces_data, GL_STATIC_DRAW);
 
@@ -464,6 +458,13 @@ static void init(void)
 	}
 
 	load_textures();
+	GLuint vert_buffer;
+	glGenVertexArrays(1, &vert_buffer);
+	glBindBuffer(GL_ARRAY_BUFFER, vert_buffer);
+
+	GLuint element_buffer;
+	glGenBuffers(1, &element_buffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer);
 
 }
 
