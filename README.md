@@ -7,7 +7,7 @@ Depdencies:
 glew
 sdl2
 sdl2_image
-cglm (yay -S cglm)
+cglm (yay -S cglm) needs glm too
 assimp
 opengl
 ```
